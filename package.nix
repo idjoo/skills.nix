@@ -31,6 +31,7 @@ in
 
       # CLI wrapper
       makeWrapper ${bun}/bin/bun $out/bin/skills \
+        --prefix PATH : ${lib.makeBinPath [git]} \
         --add-flags "run" \
         --add-flags "$out/lib/skills/bin/cli.mjs"
 

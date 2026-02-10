@@ -6,32 +6,33 @@
 }: let
   cfg = config.programs.skills;
 
-  stateDir = "\${XDG_STATE_HOME:-$HOME/.local/state}/skills-nix";
-  stateFile = "${stateDir}/managed.json";
+  # State dir uses a placeholder that install.mjs resolves at runtime
+  stateFile = "~/.local/state/skills-nix/managed.json";
 
-  # Normalize a skill entry: strings become minimal attrsets
-  normalizeSkill = skill:
-    if builtins.isString skill
-    then {source = skill;}
-    else skill;
+  # Normalize a source entry: strings become minimal attrsets
+  normalizeSource = source:
+    if builtins.isString source
+    then {source = source;}
+    else source;
 
-  normalizedSkills = map normalizeSkill cfg.skills;
+  normalizedSources = map normalizeSource cfg.sources;
 
   # Build the manifest JSON for the custom installer
   manifest = builtins.toJSON {
     inherit (cfg) mode autoUpdate;
     inherit stateFile;
-    skills = map (skill: {
-      source = skill.source;
+    skillsBin = lib.getExe' cfg.package "skills";
+    sources = map (entry: {
+      source = entry.source;
       agents =
-        if (skill.agents or []) != []
-        then skill.agents
+        if (entry.agents or []) != []
+        then entry.agents
         else cfg.defaultAgents;
-      skill = skill.skill or [];
-      global = skill.global or cfg.global;
-      fullDepth = skill.fullDepth or false;
+      skills = entry.skills or [];
+      global = entry.global or cfg.global;
+      fullDepth = entry.fullDepth or true;
     })
-    normalizedSkills;
+    normalizedSources;
   };
 
   manifestFile = pkgs.writeText "skills-manifest.json" manifest;
@@ -45,7 +46,7 @@
       exit 0
     fi
 
-    exec ${lib.getExe' cfg.package "skills-install"} ${manifestFile}
+    exec ${lib.getExe' cfg.package "skills-install"} ${manifestFile} >&2
   '';
 in {
   options.programs.skills = {
@@ -88,7 +89,7 @@ in {
       description = "Run `skills update` after installing skills.";
     };
 
-    skills = lib.mkOption {
+    sources = lib.mkOption {
       type = lib.types.listOf (lib.types.either lib.types.str (lib.types.submodule {
         options = {
           source = lib.mkOption {
@@ -107,7 +108,7 @@ in {
             example = ["opencode" "claude-code"];
           };
 
-          skill = lib.mkOption {
+          skills = lib.mkOption {
             type = lib.types.listOf lib.types.str;
             default = [];
             description = ''
@@ -125,20 +126,20 @@ in {
 
           fullDepth = lib.mkOption {
             type = lib.types.bool;
-            default = false;
-            description = "Search all subdirectories even when a root SKILL.md exists.";
+            default = true;
+            description = "Recursively search all subdirectories for skills.";
           };
         };
       }));
       default = [];
-      description = "List of skills to install. Strings are shorthand for {source = \"...\";}.";
+      description = "List of skill sources to install. Strings are shorthand for {source = \"...\";}.";
       example = lib.literalExpression ''
         [
           "wshobson/agents"
           {
             source = "vercel-labs/agent-skills";
             agents = ["opencode" "claude-code"];
-            skill = ["pr-review" "commit"];
+            skills = ["pr-review" "commit"];
           }
         ]
       '';
