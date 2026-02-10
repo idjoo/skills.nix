@@ -4,6 +4,7 @@
   fetchurl,
   makeWrapper,
   bun,
+  git,
 }: let
   version = "1.3.7";
 in
@@ -26,10 +27,19 @@ in
     '';
 
     installPhase = ''
-      mkdir -p $out/bin
+      mkdir -p $out/bin $out/lib/skills-nix
+
+      # CLI wrapper
       makeWrapper ${bun}/bin/bun $out/bin/skills \
         --add-flags "run" \
         --add-flags "$out/lib/skills/bin/cli.mjs"
+
+      # Custom installer (bypasses CLI, supports mode option)
+      cp ${./lib/install.mjs} $out/lib/skills-nix/install.mjs
+      makeWrapper ${bun}/bin/bun $out/bin/skills-install \
+        --prefix PATH : ${lib.makeBinPath [git]} \
+        --add-flags "run" \
+        --add-flags "$out/lib/skills-nix/install.mjs"
     '';
 
     meta = {
