@@ -1,0 +1,38 @@
+name: Update skills CLI
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # Daily at 06:00 UTC
+  workflow_dispatch: # Manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Check for skills CLI update
+        id: update
+        run: ./scripts/update-skills-cli.sh
+
+      - name: Create pull request
+        if: steps.update.outputs.updated == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          commit-message: "chore(deps): ⬆️ update skills CLI to ${{ steps.update.outputs.version }}"
+          title: "chore(deps): ⬆️ update skills CLI to ${{ steps.update.outputs.version }}"
+          body: |
+            ## ⬆️ Update skills CLI
+
+            - **New version**: `${{ steps.update.outputs.version }}`
+            - **Source**: [npm registry](https://www.npmjs.com/package/skills)
+            - **Changelog**: [GitHub releases](https://github.com/vercel-labs/skills/releases)
+          branch: auto/update-skills-cli
+          delete-branch: true
+          labels: dependencies,automated
