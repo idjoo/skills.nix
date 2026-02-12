@@ -40,17 +40,6 @@ programs.skills.package = pkgs.callPackage ./my-custom-skills.nix {};
 programs.skills.mode = "copy";
 ```
 
-## `programs.skills.global`
-
-- **Type:** `bool`
-- **Default:** `true`
-
-🌍 Install skills globally (user-level) by default. When `true`, skills are installed to all known agent directories.
-
-```nix
-programs.skills.global = true;
-```
-
 ## `programs.skills.defaultAgents`
 
 - **Type:** `listOf str`
@@ -127,13 +116,6 @@ Skill source identifier. Accepts:
 - **Default:** `[]`
 
 🎯 Specific skill names to install from the source. Empty list installs all discovered skills. Use `["*"]` to explicitly install all.
-
-#### `global`
-
-- **Type:** `bool`
-- **Default:** inherits from `programs.skills.global`
-
-🌍 Whether to install this source's skills globally.
 
 #### `fullDepth`
 

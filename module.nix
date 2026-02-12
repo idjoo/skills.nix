@@ -29,7 +29,6 @@
         then entry.agents
         else cfg.defaultAgents;
       skills = entry.skills or [];
-      global = entry.global or cfg.global;
       fullDepth = entry.fullDepth or true;
     })
     normalizedSources;
@@ -66,12 +65,6 @@ in {
         - "symlink": copy to canonical ~/.agents/skills/, symlink from each agent dir (default)
         - "copy": copy directly to each agent dir (no symlinks)
       '';
-    };
-
-    global = lib.mkOption {
-      type = lib.types.bool;
-      default = true;
-      description = "Install skills globally (user-level) by default.";
     };
 
     defaultAgents = lib.mkOption {
@@ -116,12 +109,6 @@ in {
               Empty list installs all available skills. Use ["*"] for all skills explicitly.
             '';
             example = ["pr-review" "commit"];
-          };
-
-          global = lib.mkOption {
-            type = lib.types.bool;
-            default = cfg.global;
-            description = "Install this skill globally (user-level).";
           };
 
           fullDepth = lib.mkOption {

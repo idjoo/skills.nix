@@ -60,7 +60,7 @@ Install only certain skills from a large repo:
 }
 ```
 
-## 🔀 Mix global and per-source agents
+## 🔀 Mix default and per-source agents
 
 ```nix
 {
