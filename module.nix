@@ -45,7 +45,7 @@
       exit 0
     fi
 
-    exec ${lib.getExe' cfg.package "skills-install"} ${manifestFile} >&2
+    exec ${lib.getExe' cfg.package "skills-install"} ${lib.optionalString cfg.verbose "--verbose"} ${manifestFile} >&2
   '';
 in {
   options.programs.skills = {
@@ -80,6 +80,12 @@ in {
       type = lib.types.bool;
       default = true;
       description = "Run `skills update` after installing skills.";
+    };
+
+    verbose = lib.mkOption {
+      type = lib.types.bool;
+      default = false;
+      description = "Show detailed per-skill install output. When false, only a summary line is printed.";
     };
 
     sources = lib.mkOption {

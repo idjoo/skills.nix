@@ -66,6 +66,17 @@ programs.skills.defaultAgents = ["opencode" "claude-code" "cursor"];
 programs.skills.autoUpdate = false;
 ```
 
+## `programs.skills.verbose`
+
+- **Type:** `bool`
+- **Default:** `false`
+
+🔊 Show detailed per-skill install output. When `false` (the default), only a summary line like `✅ 12 installed, 3 skipped (cached)` is printed. Set to `true` to see every skill install, skip, and removal as it happens.
+
+```nix
+programs.skills.verbose = true;
+```
+
 ## `programs.skills.sources`
 
 - **Type:** `listOf (either str submodule)`
