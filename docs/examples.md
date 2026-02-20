@@ -60,6 +60,24 @@ Install only certain skills from a large repo:
 }
 ```
 
+## 🚫 Exclude unwanted skills
+
+Install everything from a repo *except* certain skills:
+
+```nix
+{
+  programs.skills = {
+    enable = true;
+    sources = [
+      {
+        source = "vercel-labs/agent-skills";
+        skills = { exclude = ["deprecated-skill" "experimental-feature"]; };
+      }
+    ];
+  };
+}
+```
+
 ## 🔀 Mix default and per-source agents
 
 ```nix

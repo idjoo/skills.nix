@@ -17,18 +17,29 @@
 
   normalizedSources = map normalizeSource cfg.sources;
 
+  # Normalize skills filter: plain list → include, attrset passes through
+  normalizeSkills = skills:
+    if builtins.isList skills
+    then {include = skills; exclude = [];}
+    else {
+      include = skills.include or [];
+      exclude = skills.exclude or [];
+    };
+
   # Build the manifest JSON for the custom installer
   manifest = builtins.toJSON {
     inherit (cfg) mode autoUpdate;
     inherit stateFile;
     skillsBin = lib.getExe' cfg.package "skills";
-    sources = map (entry: {
+    sources = map (entry: let
+      s = normalizeSkills (entry.skills or []);
+    in {
       source = entry.source;
       agents =
         if (entry.agents or []) != []
         then entry.agents
         else cfg.defaultAgents;
-      skills = entry.skills or [];
+      skills = {inherit (s) include exclude;};
       fullDepth = entry.fullDepth or true;
     })
     normalizedSources;
@@ -108,13 +119,33 @@ in {
           };
 
           skills = lib.mkOption {
-            type = lib.types.listOf lib.types.str;
+            type = lib.types.either
+              (lib.types.listOf lib.types.str)
+              (lib.types.submodule {
+                options = {
+                  include = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [];
+                    description = "Skill names to include from the source repo. Empty list means no include filter.";
+                    example = ["pr-review" "commit"];
+                  };
+                  exclude = lib.mkOption {
+                    type = lib.types.listOf lib.types.str;
+                    default = [];
+                    description = "Skill names to exclude from the source repo.";
+                    example = ["deprecated-skill"];
+                  };
+                };
+              });
             default = [];
             description = ''
-              Specific skill names to install from the source repo.
-              Empty list installs all available skills. Use ["*"] for all skills explicitly.
+              Skills filter for this source. Can be:
+              - A list of skill names to include (e.g. `["pr-review" "commit"]`)
+              - An attrset with `include` (e.g. `{ include = ["pr-review"]; }`)
+              - An attrset with `exclude` (e.g. `{ exclude = ["deprecated-skill"]; }`)
+              Empty list or `{}` installs all available skills.
             '';
-            example = ["pr-review" "commit"];
+            example = lib.literalExpression ''{ exclude = ["deprecated-skill"]; }'';
           };
 
           fullDepth = lib.mkOption {
@@ -132,7 +163,11 @@ in {
           {
             source = "vercel-labs/agent-skills";
             agents = ["opencode" "claude-code"];
-            skills = ["pr-review" "commit"];
+            skills = ["pr-review" "commit"]; # shorthand for include
+          }
+          {
+            source = "anthropics/courses";
+            skills = { exclude = ["deprecated-skill"]; };
           }
         ]
       '';

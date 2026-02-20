@@ -123,10 +123,27 @@ Skill source identifier. Accepts:
 
 #### `skills`
 
-- **Type:** `listOf str`
+- **Type:** `either (listOf str) { include; exclude; }`
 - **Default:** `[]`
 
-🎯 Specific skill names to install from the source. Empty list installs all discovered skills. Use `["*"]` to explicitly install all.
+🎯 Filter which skills to install from the source. Supports three forms:
+
+| Form | Example | Behavior |
+|---|---|---|
+| 📝 List (shorthand) | `["pr-review" "commit"]` | Include only these skills |
+| ✅ Include attrset | `{ include = ["pr-review"]; }` | Include only these skills |
+| 🚫 Exclude attrset | `{ exclude = ["deprecated"]; }` | Install all skills *except* these |
+
+An empty list `[]` or empty attrset `{}` installs all discovered skills. Use `["*"]` to explicitly install all.
+
+```nix
+# These are equivalent — include only specific skills:
+skills = ["pr-review" "commit"];
+skills = { include = ["pr-review" "commit"]; };
+
+# Exclude specific skills (install everything else):
+skills = { exclude = ["deprecated-skill" "experimental"]; };
+```
 
 #### `fullDepth`
 
@@ -142,11 +159,17 @@ programs.skills.sources = [
   # Simple: install all skills from this repo to all agents
   "wshobson/agents"
 
-  # Advanced: selective install
+  # Include only specific skills
   {
     source = "vercel-labs/agent-skills";
     agents = ["opencode" "claude-code"];
     skills = ["pr-review" "commit"];
+  }
+
+  # Exclude unwanted skills (install everything else)
+  {
+    source = "anthropics/courses";
+    skills = { exclude = ["deprecated-skill"]; };
   }
 
   # Local path
