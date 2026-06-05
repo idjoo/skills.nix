@@ -2,21 +2,28 @@
 
 ## 🏗️ Architecture
 
-skills.nix has three main components:
+skills.nix is a thin, declarative layer over the official
+[`skills` CLI](https://github.com/vercel-labs/skills). It has two components:
 
 ```
 flake.nix
-  ├── module.nix      🏠 Home Manager module (Nix options + activation script)
-  ├── package.nix      📦 Nix derivation wrapping the skills CLI from npm
-  └── lib/install.mjs  ⚙️  Custom declarative installer (runs at activation time)
+  ├── module.nix    🏠 Home Manager module (Nix options + activation script)
+  └── package.nix   📦 Nix derivation wrapping the skills CLI from npm
 ```
+
+There is **no custom installer** — the module generates plain `skills` commands
+and lets the CLI do all the work (discovery, cloning, symlinking, agent
+detection, update tracking). This means you get every source type and every
+agent the CLI supports, for free, and it stays correct as the CLI evolves.
 
 ### 🏠 Module (`module.nix`)
 
 Defines `programs.skills.*` options and wires them into Home Manager:
 
-- 📄 Generates a **manifest JSON** from your Nix configuration
-- 🛡️ Creates an `install-skills` wrapper script with network checks
+- 📝 Renders your `sources` into a list of `skills add …` commands, written to a
+  file in the Nix store (`skills-commands.sh`)
+- 🛡️ Creates an `install-skills` script that reconciles your config (with a
+  network check and an unchanged-config fast path)
 - 🪝 Registers a Home Manager **activation hook** that runs after `writeBoundary`
 
 ### 📦 Package (`package.nix`)
@@ -24,76 +31,59 @@ Defines `programs.skills.*` options and wires them into Home Manager:
 Wraps the official [`skills` CLI](https://github.com/vercel-labs/skills) as a Nix derivation:
 
 - ⬇️ Downloads the tarball from the npm registry
-- 🐰 Uses [Bun](https://bun.sh/) as the JavaScript runtime
-- 🔧 Provides two binaries: `skills` (the CLI) and `skills-install` (the declarative installer)
+- 🐰 Uses [Bun](https://bun.sh/) as the JavaScript runtime, with `git` on PATH
+- 🔧 Provides the `skills` binary
 
-### ⚙️ Installer (`lib/install.mjs`)
+## 🔄 Reconciliation (declarative ownership)
 
-The core reconciliation engine. It runs in 5 phases:
+When `programs.skills.enable = true`, your **global** agent skills are fully
+owned by Nix. On each `home-manager switch`, `install-skills` runs:
 
-1. 🧹 **Remove stale skills** — deletes skills from sources no longer in your config
-2. 📥 **Prepare sources** — clones repos or resolves local paths (in parallel)
-3. 📦 **Install skills** — discovers `SKILL.md` files, copies/symlinks to agent directories
-4. 💾 **Write state** — persists current state to `~/.local/state/skills-nix/managed.json`
-5. 🔄 **Update** — optionally runs `skills update` via the CLI
+1. ⏭️ **Change gate** — compares the Nix store path of the generated commands
+   file against the last-applied path. If unchanged (and `--force` not passed),
+   it does nothing but an optional `skills update` — no network, no churn.
+2. 📡 **Network check** — if `github.com` is unreachable, it skips gracefully.
+3. 🧹 **Wipe** — `skills remove --all -g -y` clears all global skills.
+4. 📦 **Rebuild** — runs each generated `skills add <source> -g -y …` line.
+5. 🔄 **Update** — if `autoUpdate`, runs `skills update -g -y`.
+6. 💾 **Record** — saves the applied store path to the marker file.
+
+The wipe-and-rebuild model guarantees the installed set exactly matches your
+config without skills.nix tracking any per-skill state itself.
+
+> ⚠️ **Declarative ownership:** while this module is enabled, global skills you
+> add manually with `npx skills add …` will be removed on the next switch.
+> Manage them through `programs.skills.sources` instead.
 
 ## 🔗 Install Modes
 
-### 🔗 Symlink mode (default)
+Maps directly to the CLI's behavior:
 
-```
-~/.agents/skills/           📂 (canonical — full copies live here)
-  ├── commit/
-  ├── pr-review/
-  └── ...
+| Mode | CLI flag | Behavior |
+|---|---|---|
+| 🔗 `"symlink"` (default) | *(none)* | One canonical copy under `~/.agents/skills`, symlinked into each agent directory. Space-efficient. |
+| 📋 `"copy"` | `--copy` | An independent copy in each agent directory. Fully isolated. |
 
-~/.config/opencode/skills/  🔗 (agent dir — symlinks)
-  ├── commit -> ../../../.agents/skills/commit
-  ├── pr-review -> ../../../.agents/skills/pr-review
-  └── ...
+The canonical `~/.agents/skills` directory is managed by the CLI itself —
+"universal" agents read from it directly, others get symlinks (or copies).
 
-~/.claude/skills/           🔗 (another agent — same symlinks)
-  ├── commit -> ../../.agents/skills/commit
-  └── ...
-```
+## 🗂️ State & update detection
 
-- 💾 Space-efficient: only one copy of each skill on disk
-- 🔄 All agents always see the same version
-- 🛡️ Falls back to copy if symlink creation fails
+skills.nix keeps **no skill state of its own**. The CLI maintains a global lock
+file (`$XDG_STATE_HOME/skills/.skill-lock.json`, falling back to
+`~/.agents/.skill-lock.json`) recording each skill's source and GitHub tree SHA.
+`skills check` / `skills update` use that hash to detect and pull upstream
+changes.
 
-### 📋 Copy mode
-
-```
-~/.agents/skills/           📂 (canonical)
-  ├── commit/
-  └── ...
-
-~/.config/opencode/skills/  📂 (independent copy)
-  ├── commit/
-  └── ...
-
-~/.claude/skills/           📂 (independent copy)
-  ├── commit/
-  └── ...
-```
-
-- 🏝️ Each agent has its own independent copy
-- 💿 More disk usage, but fully isolated
-
-## ⚡ Smart Caching
-
-The installer tracks the Git commit hash of each remote source. On subsequent runs:
-
-1. 🔍 Queries `git ls-remote` for the current remote HEAD
-2. 🔄 Compares against the stored hash in `~/.local/state/skills-nix/managed.json`
-3. ⏭️ Skips cloning if the hash matches (source unchanged)
-4. 💪 Use `install-skills --force` to bypass caching
-
-Local sources always check the local commit hash but don't skip — they're always re-scanned since the directory is already available.
+The only file skills.nix writes is a tiny change-gate marker at
+`$XDG_STATE_HOME/skills-nix/applied` holding the last-applied store path. Delete
+it (or run `install-skills --force`) to force a full reconcile.
 
 ## 🔎 Skill Discovery
 
-A valid skill is a directory containing a `SKILL.md` file with YAML frontmatter including `name` and `description` fields:
+Discovery is handled entirely by the CLI. A valid skill is a directory
+containing a `SKILL.md` file with YAML frontmatter including `name` and
+`description`:
 
 ```markdown
 ---
@@ -104,27 +94,8 @@ description: Does something useful
 Skill instructions here...
 ```
 
-With `fullDepth = true` (default), the installer recursively searches all subdirectories. With `fullDepth = false`, it only checks the top-level directory and its immediate children.
-
-## 💾 State Management
-
-State is persisted at `~/.local/state/skills-nix/managed.json`:
-
-```json
-{
-  "owner/repo": {
-    "skills": ["skill-a", "skill-b"],
-    "agents": ["*"],
-    "commitHash": "abc123..."
-  }
-}
-```
-
-This enables:
-
-- ⚡ **Cache invalidation** — skip unchanged repos
-- 🧹 **Stale cleanup** — when you remove a source from your config, its skills are removed from disk
-- 🛡️ **Crash recovery** — if installation fails for a source, the old state is preserved
+The CLI searches sources (roughly two levels deep, with a recursive fallback)
+and selects skills by name when you pass a `skills` filter.
 
 ## 🔄 Activation Lifecycle
 
@@ -132,22 +103,23 @@ This enables:
 home-manager switch
   └── activation.installSkills
         ├── 🧪 Check DRY_RUN (skip if dry run)
-        ├── 📡 Network check (curl github.com)
-        │     └── ❌ No network? → skip gracefully
         └── ▶️  Run install-skills
-              ├── 1️⃣  Phase 1: Remove stale
-              ├── 2️⃣  Phase 2: Prepare sources (parallel git clone)
-              ├── 3️⃣  Phase 3: Install skills
-              ├── 4️⃣  Phase 4: Write state
-              └── 5️⃣  Phase 5: Auto-update (optional)
+              ├── ⏭️  Change gate (skip if config unchanged)
+              ├── 📡 Network check (curl github.com)
+              ├── 🧹 skills remove --all -g -y
+              ├── 📦 skills add … (one per source)
+              ├── 🔄 skills update -g -y (optional)
+              └── 💾 Save marker
 ```
 
 ## 📡 Offline Behavior
 
-The activation script checks network connectivity before running. If `github.com` is unreachable (e.g. during initial NixOS install or on a plane ✈️), the script exits with a message:
+The script checks network connectivity before doing any network work. If
+`github.com` is unreachable (e.g. during initial install or on a plane ✈️), it
+exits with:
 
 ```
 [skip] No network — run 'install-skills' later
 ```
 
-You can manually run `install-skills` later when connectivity is restored. 🌐
+Run `install-skills` manually once connectivity is restored. 🌐

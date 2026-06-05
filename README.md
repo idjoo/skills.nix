@@ -2,7 +2,9 @@
 
 Declarative agent skills management for [skills.sh](https://skills.sh) via [Home Manager](https://github.com/nix-community/home-manager). ✨
 
-Manage AI coding agent skills across OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Copilot, Amp, Cline, Goose, Roo, Windsurf, Trae, Kilo, Kiro CLI, Droid, and more — all from your Nix configuration. 🤖
+Manage AI coding agent skills across OpenCode, Claude Code, Cursor, Codex, Gemini CLI, Copilot, Cline, Goose, Windsurf, and 70+ other agents — all from your Nix configuration. 🤖
+
+It's a thin, declarative layer over the official [`skills` CLI](https://github.com/vercel-labs/skills): your Nix config is rendered into `skills add` commands and reconciled on every `home-manager switch`.
 
 ## 🚀 Quick Start
 
@@ -38,13 +40,18 @@ That's it! Skills are installed automatically on every `home-manager switch`. �
 
 ## ✨ Features
 
-- 📦 **Declarative** — define skills in your Nix config, they're reconciled on every activation
-- 🤖 **Multi-agent** — install to all supported agents at once, or target specific ones
-- ⚡ **Smart caching** — skips re-cloning repos when the remote hasn't changed
+- 📦 **Declarative** — define skills in your Nix config, reconciled on every activation
+- 🤖 **70+ agents** — install to all detected agents at once, or target specific ones
+- 🌍 **Any source** — GitHub/GitLab/HuggingFace, refs & subpaths, git URLs, local paths
 - 🔗 **Two install modes** — symlink (default, space-efficient) or copy
-- 🧹 **Auto-cleanup** — removed sources are cleaned up automatically
-- 🔄 **Auto-update** — optionally runs `skills update` after installation
+- 🧹 **Declarative ownership** — global skills always match your config; dropped sources are removed
+- ⚡ **Change-gated** — skips entirely when your config hasn't changed (no network)
+- 🔄 **Auto-update** — optionally runs `skills update` after reconciling
 - 📡 **Offline-safe** — gracefully skips when no network is available
+
+> ⚠️ While enabled, your **global** agent skills are fully managed by Nix —
+> skills added manually with `npx skills add … -g` are removed on the next switch.
+> Declare them in `programs.skills.sources` instead.
 
 ## 📚 Documentation
 
@@ -60,24 +67,10 @@ That's it! Skills are installed automatically on every `home-manager switch`. �
 
 ## 🤖 Supported Agents
 
-| Agent | Global Skills Directory |
-|---|---|
-| OpenCode | `~/.config/opencode/skills/` |
-| Claude Code | `~/.claude/skills/` |
-| Cursor | `~/.cursor/skills/` |
-| Codex | `~/.codex/skills/` |
-| Gemini CLI | `~/.gemini/skills/` |
-| GitHub Copilot | `~/.copilot/skills/` |
-| Amp | `~/.config/agents/skills/` |
-| Antigravity | `~/.gemini/antigravity/skills/` |
-| Cline | `~/.cline/skills/` |
-| Goose | `~/.config/goose/skills/` |
-| Roo | `~/.roo/skills/` |
-| Windsurf | `~/.codeium/windsurf/skills/` |
-| Trae | `~/.trae/skills/` |
-| Kilo | `~/.kilocode/skills/` |
-| Kiro CLI | `~/.kiro/skills/` |
-| Droid | `~/.factory/skills/` |
+Whatever the upstream [`skills` CLI](https://github.com/vercel-labs/skills)
+supports — 70+ agents including OpenCode, Claude Code, Cursor, Codex, Gemini CLI,
+GitHub Copilot, Cline, Goose, Windsurf, and many more. Use `["*"]` to target all
+detected agents, or list specific names in `defaultAgents` / a source's `agents`.
 
 ## 📄 License
 

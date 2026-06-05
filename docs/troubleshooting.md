@@ -13,141 +13,127 @@
 
 ---
 
-**🔍 Symptom:** Source is skipped as "unchanged."
+**🔍 Symptom:** Nothing happens on switch even though you changed something.
 
-**💡 Cause:** The remote commit hash matches the cached one. The source repo hasn't been updated.
+**💡 Cause:** Only changes to your `programs.skills` config trigger a reconcile
+(the change gate compares the generated commands file). Editing a skill upstream
+doesn't change your config.
 
-**✅ Fix:** Force re-install:
+**✅ Fix:** Force a full reconcile:
 ```bash
 install-skills --force
 ```
 
-Or delete the state file to reset:
-```bash
-rm ~/.local/state/skills-nix/managed.json
-install-skills
+## ⚠️ Manually-added global skills disappear
+
+**🔍 Symptom:** Skills you installed with `npx skills add … -g` vanish after a
+`home-manager switch`.
+
+**💡 Cause:** This is intentional. While `programs.skills.enable = true`, your
+global skills are **fully managed by Nix** — every reconcile wipes and rebuilds
+them from `programs.skills.sources`.
+
+**✅ Fix:** Add those skills to `programs.skills.sources` so they're declared.
+
+## 🐙 GitHub rate limits
+
+**🔍 Symptom:** `skills add`/`check` fails with HTTP 403 or rate-limit errors,
+especially with many sources.
+
+**💡 Cause:** Anonymous GitHub API requests are rate-limited.
+
+**✅ Fix:** Provide a token — the CLI honors `GITHUB_TOKEN` / `GH_TOKEN` (and
+`gh auth token`). Make sure one is present in the environment Home Manager runs
+in, e.g. via `home.sessionVariables` or your shell profile:
+```nix
+home.sessionVariables.GITHUB_TOKEN = "…";  # or source it from a secret manager
 ```
 
 ## 🔗 Symlinks not working
 
-**🔍 Symptom:** Agent reports missing skills, but `~/.agents/skills/` has the files.
+**🔍 Symptom:** An agent reports missing skills, but `~/.agents/skills/` has the files.
 
-**🔎 Check:** Verify symlinks are intact:
+**🔎 Check:** Verify the agent's skill links are intact:
 ```bash
 ls -la ~/.config/opencode/skills/
 ```
 
-Broken symlinks may appear as red entries. This can happen if the canonical directory was moved or deleted.
-
-**✅ Fix:** Re-run the installer:
+**✅ Fix:** Re-run the installer, or switch to copy mode:
 ```bash
 install-skills --force
 ```
-
-Or switch to copy mode in your config:
 ```nix
 programs.skills.mode = "copy";
 ```
 
-## ⚠️ "Unknown agent" warnings
+## 🔍 No skills found
 
-**🔍 Symptom:** Installer logs `unknown agent: <name>`.
+**🔍 Symptom:** A source installs nothing.
 
-**💡 Cause:** The agent name in your config doesn't match a known agent identifier.
-
-**📝 Valid names:** `opencode`, `claude-code`, `cursor`, `codex`, `gemini-cli`, `github-copilot`, `amp`, `antigravity`, `cline`, `goose`, `roo`, `windsurf`, `trae`, `kilo`, `kiro-cli`, `droid`
-
-**✅ Fix:** Use the exact agent name from the list above. Use `["*"]` to target all agents.
-
-## 🔍 "No skills found" warnings
-
-**🔍 Symptom:** `no skills found in <source>`
-
-**💡 Cause:** The source repository doesn't contain any valid `SKILL.md` files, or the files lack required frontmatter (`name` and `description`).
-
-**🔎 Check:** A valid `SKILL.md` must have:
+**💡 Cause:** The source has no valid `SKILL.md` files, or your `skills` filter
+names don't match. A valid `SKILL.md` needs `name` and `description` frontmatter:
 ```markdown
 ---
 name: skill-name
 description: What this skill does
 ---
-
-Content...
 ```
 
-**🎯 If using `skills` filter:** Ensure the skill names in your `skills = [...]` list match the `name` field in the `SKILL.md` frontmatter (case-insensitive).
-
-## 🐙 Git clone failures
-
-**🔍 Symptom:** `failed to process <source>: ...`
-
-**💡 Common causes:**
-- 🚫 Repository doesn't exist or is private
-- ❌ Git is not in PATH
-- ⏱️ Network timeout (clone has a 30-second timeout)
-
-**✅ Fix:**
-- Verify the repo URL: `git ls-remote https://github.com/owner/repo.git`
-- For private repos, ensure SSH keys or credentials are configured 🔑
-- Check that `git` is available: `which git`
-
-## 💾 State file issues
-
-**📍 Location:** `~/.local/state/skills-nix/managed.json`
-
-**🔄 Reset state completely:**
+**🎯 If using a `skills` filter:** Ensure the names in `skills = [...]` match the
+`name` field in each `SKILL.md` (case-insensitive). Inspect available skills with:
 ```bash
-rm ~/.local/state/skills-nix/managed.json
+skills add owner/repo --list
 ```
 
-**🔎 Inspect current state:**
+## 🔄 Reset state
+
+**📍 Marker file:** `${XDG_STATE_HOME:-$HOME/.local/state}/skills-nix/applied`
+(skills.nix's change gate — not skill data).
+
+**📍 CLI lock file:** `${XDG_STATE_HOME:-$HOME/.local/state}/skills/.skill-lock.json`
+or `~/.agents/.skill-lock.json` (the skills CLI's own tracking).
+
+**🔄 Force a clean reconcile:**
 ```bash
-cat ~/.local/state/skills-nix/managed.json | jq .
+install-skills --force
 ```
 
 ## 🏠 Home Manager activation errors
 
 **🔍 Symptom:** `home-manager switch` fails with an error related to skills.
 
-**🔎 Check the manifest:** The module generates a manifest JSON. You can inspect it:
+**🔎 Inspect the generated commands:**
 ```bash
-cat /nix/store/*-skills-manifest.json
+cat /nix/store/*-skills-commands.sh
 ```
 
 **💡 Common issues:**
-- ❌ Invalid source format in `programs.skills.sources`
+- ❌ Invalid source string in `programs.skills.sources`
 - ❌ Type mismatch in option values (e.g. string where list is expected)
 
 **🐛 Debug:** Run `home-manager switch --show-trace` for full error details.
 
-## 🔄 Skills not updating
+## 🐰 Runtime issues (Bun / git)
 
-**🔍 Symptom:** Skills are installed but out of date.
+**🔍 Symptom:** The `skills` command itself errors out.
 
-**💡 Cause:** `autoUpdate` may be disabled, or the source commit hash hasn't changed.
+**💡 Cause:** The CLI runs under [Bun](https://bun.sh/) and shells out to `git`
+(both provided by the package). On a CLI version bump, Bun-vs-Node differences
+can occasionally surface.
 
-**✅ Fix:**
-```bash
-# Force reinstall
-install-skills --force
-```
-
-**Or enable auto-update:**
-```nix
-programs.skills.autoUpdate = true;  # This is the default
-```
-
-> 💻 For manual CLI updates, see the [skills CLI docs](https://github.com/vercel-labs/skills).
+**✅ Fix:** Report it upstream, and as a workaround pin `programs.skills.package`
+to a previous working derivation.
 
 ## ⚡ Performance
 
-**🐌 Slow activation:** The installer clones repos in parallel, but large repos or many sources can still take time. Consider:
+**🐌 Slow activation:** Many sources mean many `skills add` calls. Consider:
 
-- 🎯 Using `skills` filter to install only the skills you need
-- 📂 Setting `fullDepth = false` if skills are at the top level
+- 🎯 Using a `skills` filter to install only what you need
+- 🔑 Setting `GITHUB_TOKEN` to avoid rate-limit backoff
 - 📡 Ensuring good network connectivity
 
-**💿 Disk usage:** In symlink mode, only one copy of each skill is stored. In copy mode, each agent gets its own copy. Check usage:
+**💿 Disk usage:** In symlink mode only one copy of each skill is stored; in copy
+mode each agent gets its own. Check usage:
 ```bash
 du -sh ~/.agents/skills/
 ```

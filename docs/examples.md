@@ -60,19 +60,38 @@ Install only certain skills from a large repo:
 }
 ```
 
-## 🚫 Exclude unwanted skills
+## 🌿 Pin a ref or subpath
 
-Install everything from a repo *except* certain skills:
+The `source` string is passed straight to the CLI, so refs, branches, tags, and
+repo subpaths all work:
 
 ```nix
 {
   programs.skills = {
     enable = true;
     sources = [
-      {
-        source = "vercel-labs/agent-skills";
-        skills = { exclude = ["deprecated-skill" "experimental-feature"]; };
-      }
+      # A subpath within a repo, pinned to a branch
+      "anthropics/courses/tree/main/skills"
+
+      # A specific tag
+      "owner/repo/tree/v1.2.0"
+    ];
+  };
+}
+```
+
+## 🌍 Other providers and URLs
+
+GitLab, HuggingFace, plain git URLs, and direct URLs are all supported:
+
+```nix
+{
+  programs.skills = {
+    enable = true;
+    sources = [
+      "https://gitlab.com/owner/repo"
+      "https://huggingface.co/owner/repo"
+      "git@github.com:owner/repo.git"
     ];
   };
 }
