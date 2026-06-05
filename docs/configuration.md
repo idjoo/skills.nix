@@ -18,7 +18,9 @@ programs.skills.enable = true;
 - **Type:** `package`
 - **Default:** built-in `skills-cli` derivation
 
-📦 The skills CLI package to use. Override this if you want to pin a different version or use a custom build. See [vercel-labs/skills](https://github.com/vercel-labs/skills) for the upstream CLI.
+📦 The skills CLI package to use. Override this to pin a different version or use
+a custom build. See [vercel-labs/skills](https://github.com/vercel-labs/skills)
+for the upstream CLI.
 
 ```nix
 programs.skills.package = pkgs.callPackage ./my-custom-skills.nix {};
@@ -29,12 +31,12 @@ programs.skills.package = pkgs.callPackage ./my-custom-skills.nix {};
 - **Type:** `enum ["symlink" "copy"]`
 - **Default:** `"symlink"`
 
-🔗 How skills are installed to agent directories.
+🔗 How skills are installed to agent directories (maps to the CLI's `--copy`).
 
 | Mode | Behavior |
 |---|---|
-| 🔗 `"symlink"` | Copies to `~/.agents/skills/`, then creates symlinks from each agent directory. Space-efficient, single source of truth. |
-| 📋 `"copy"` | Copies directly to each agent directory. More isolated, no symlinks. |
+| 🔗 `"symlink"` | One canonical copy under `~/.agents/skills`, symlinked into each agent directory. Space-efficient. |
+| 📋 `"copy"` | An independent copy in each agent directory (passes `--copy`). Fully isolated. |
 
 ```nix
 programs.skills.mode = "copy";
@@ -45,22 +47,23 @@ programs.skills.mode = "copy";
 - **Type:** `listOf str`
 - **Default:** `["*"]`
 
-🤖 Default agents to install skills to when not specified per-source. Use `["*"]` for all agents, or list specific ones.
+🤖 Default agents to install skills to when a source doesn't set its own. Use
+`["*"]` for all detected agents, or list specific names. The CLI supports 70+
+agents — see [its docs](https://github.com/vercel-labs/skills) for the full set
+(e.g. `opencode`, `claude-code`, `cursor`, `codex`, `gemini-cli`,
+`github-copilot`, `cline`, `goose`, `windsurf`, …).
 
 ```nix
 programs.skills.defaultAgents = ["opencode" "claude-code" "cursor"];
 ```
-
-### 📝 Valid agent names
-
-`opencode`, `claude-code`, `cursor`, `codex`, `gemini-cli`, `github-copilot`, `amp`, `antigravity`, `cline`, `goose`, `roo`, `windsurf`, `trae`, `kilo`, `kiro-cli`, `droid`
 
 ## `programs.skills.autoUpdate`
 
 - **Type:** `bool`
 - **Default:** `true`
 
-🔄 Run `skills update` after installing skills. This fetches any upstream changes via the [skills CLI](https://github.com/vercel-labs/skills).
+🔄 Run `skills update -g -y` after reconciling, to pull upstream skill changes
+(the CLI compares stored GitHub tree SHAs to detect updates).
 
 ```nix
 programs.skills.autoUpdate = false;
@@ -71,10 +74,24 @@ programs.skills.autoUpdate = false;
 - **Type:** `bool`
 - **Default:** `false`
 
-🔊 Show detailed per-skill install output. When `false` (the default), only a summary line like `✅ 12 installed, 3 skipped (cached)` is printed. Set to `true` to see every skill install, skip, and removal as it happens.
+🔊 Echo each `skills` command as it runs. Useful for debugging which sources are
+being reconciled.
 
 ```nix
 programs.skills.verbose = true;
+```
+
+## `programs.skills.telemetry`
+
+- **Type:** `bool`
+- **Default:** `false`
+
+📊 Whether to allow the skills CLI's privacy-preserving telemetry during
+activation. When `false` (default), `DO_NOT_TRACK=1` is exported so declarative
+runs stay silent. Set to `true` to opt in.
+
+```nix
+programs.skills.telemetry = true;
 ```
 
 ## `programs.skills.sources`
@@ -85,7 +102,7 @@ programs.skills.verbose = true;
 📚 List of skill sources to install. Each entry can be:
 
 - A **string** — shorthand for `{ source = "..."; }` with all defaults
-- An **attribute set** — full control over source, agents, skill filtering, etc.
+- An **attribute set** — full control over source, agents, and skill selection
 
 ### 🔤 String form (simple)
 
@@ -105,13 +122,16 @@ Each source submodule supports these options:
 - **Type:** `str`
 - **Required** ⚠️
 
-Skill source identifier. Accepts:
+Skill source, passed verbatim to `skills add`. The CLI accepts a rich set of
+formats:
 
 | Format | Example |
 |---|---|
 | 🐙 GitHub shorthand | `"owner/repo"` |
-| 🌐 Full URL | `"https://github.com/owner/repo.git"` |
-| 🔑 SSH URL | `"git@github.com:owner/repo.git"` |
+| 🌿 Ref + subpath | `"owner/repo/tree/main/skills"` |
+| 🦊 GitLab | `"https://gitlab.com/owner/repo"` |
+| 🤗 HuggingFace | `"https://huggingface.co/owner/repo"` |
+| 🌐 Full / git URL | `"https://github.com/owner/repo.git"`, `"git@github.com:owner/repo.git"` |
 | 📁 Local path | `"/home/user/my-skills"` or `"./relative-path"` |
 
 #### `agents`
@@ -119,38 +139,31 @@ Skill source identifier. Accepts:
 - **Type:** `listOf str`
 - **Default:** `[]` (inherits from `defaultAgents`)
 
-🤖 Agents to install this source's skills to. Empty list falls back to `defaultAgents`.
+🤖 Agents to install this source's skills to. Empty list falls back to
+`defaultAgents`. Use `["*"]` for all detected agents.
 
 #### `skills`
 
-- **Type:** `either (listOf str) { include; exclude; }`
+- **Type:** `either (listOf str) { include; }`
 - **Default:** `[]`
 
-🎯 Filter which skills to install from the source. Supports three forms:
+🎯 Which skills to install from the source (maps to `skills add -s`). Two forms:
 
 | Form | Example | Behavior |
 |---|---|---|
-| 📝 List (shorthand) | `["pr-review" "commit"]` | Include only these skills |
-| ✅ Include attrset | `{ include = ["pr-review"]; }` | Include only these skills |
-| 🚫 Exclude attrset | `{ exclude = ["deprecated"]; }` | Install all skills *except* these |
+| 📝 List (shorthand) | `["pr-review" "commit"]` | Install only these skills |
+| ✅ Include attrset | `{ include = ["pr-review"]; }` | Install only these skills |
 
-An empty list `[]` or empty attrset `{}` installs all discovered skills. Use `["*"]` to explicitly install all.
+An empty list `[]` or `["*"]` installs all available skills.
 
 ```nix
-# These are equivalent — include only specific skills:
+# Equivalent — install only specific skills:
 skills = ["pr-review" "commit"];
 skills = { include = ["pr-review" "commit"]; };
-
-# Exclude specific skills (install everything else):
-skills = { exclude = ["deprecated-skill" "experimental"]; };
 ```
 
-#### `fullDepth`
-
-- **Type:** `bool`
-- **Default:** `true`
-
-🔍 Recursively search all subdirectories for skills (directories containing `SKILL.md`). Set to `false` for top-level only.
+> ℹ️ **No `exclude`.** The skills CLI has no exclude flag, so skills.nix doesn't
+> expose one. List the skills you want with `include` instead.
 
 ### 💡 Full example
 
@@ -159,17 +172,16 @@ programs.skills.sources = [
   # Simple: install all skills from this repo to all agents
   "wshobson/agents"
 
-  # Include only specific skills
+  # Include only specific skills, for specific agents
   {
     source = "vercel-labs/agent-skills";
     agents = ["opencode" "claude-code"];
     skills = ["pr-review" "commit"];
   }
 
-  # Exclude unwanted skills (install everything else)
+  # A pinned ref and subpath within a repo
   {
-    source = "anthropics/courses";
-    skills = { exclude = ["deprecated-skill"]; };
+    source = "anthropics/courses/tree/main/skills";
   }
 
   # Local path

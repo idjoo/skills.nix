@@ -53,20 +53,21 @@ In your Home Manager configuration (e.g. `home.nix`):
 home-manager switch
 ```
 
-Skills are cloned, discovered, and installed to all your agent directories automatically. 🎉
+Skills are discovered and installed to all your agent directories automatically. 🎉
 
 ## 🔄 What happens on activation
 
-When you run `home-manager switch`, the module:
+When you run `home-manager switch`, the module reconciles your config via the
+`skills` CLI:
 
-1. 📡 Checks for network connectivity (skips gracefully if offline)
-2. 🔍 Compares each source repo's remote commit hash against the local cache
-3. 📥 Clones only repos that have changed (or are new)
-4. 🔎 Discovers all `SKILL.md` files in each repo
-5. 📂 Copies skills to `~/.agents/skills/` (canonical location)
-6. 🔗 Symlinks (or copies) from each agent's global skills directory
-7. 🧹 Removes skills from sources you've dropped from your config
-8. 🔄 Optionally runs `skills update` for any additional updates
+1. ⏭️ Skips entirely if your `programs.skills` config hasn't changed
+2. 📡 Checks for network connectivity (skips gracefully if offline)
+3. 🧹 Clears the current global skills (`skills remove --all -g -y`)
+4. 📦 Installs each source (`skills add <source> -g -y …`)
+5. 🔄 Optionally runs `skills update -g -y` to pull upstream changes
+
+> ⚠️ While enabled, your global agent skills are **fully managed by Nix** —
+> manage them through `programs.skills.sources`, not `npx skills add … -g`.
 
 > 💻 The module also adds the `skills` CLI to your PATH. For CLI usage and documentation, see [**vercel-labs/skills**](https://github.com/vercel-labs/skills).
 
