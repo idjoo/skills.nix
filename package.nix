@@ -6,7 +6,7 @@
   bun,
   git,
 }: let
-  version = "1.5.10";
+  version = "1.5.26";
 in
   stdenv.mkDerivation {
     pname = "skills-cli";
@@ -14,7 +14,7 @@ in
 
     src = fetchurl {
       url = "https://registry.npmjs.org/skills/-/skills-${version}.tgz";
-      hash = "sha256-FjDG4GJRKrmxEL15Mkp3j+RhAUbq2kl3Yg53BGuNO/M=";
+      hash = "sha256-vJPNQDEEq4WavfvmkroftEKf0uR8OKuydEmk6Oa6lDw=";
     };
 
     nativeBuildInputs = [makeWrapper];
